@@ -1,29 +1,29 @@
 import { useState } from 'react';
 import {
   FlatList, StyleSheet, View,
-
   Modal,
   Pressable,
-  Text,
-
+  Text
 } from 'react-native'
 import Card from '../Card/Card';
-import { questions } from './question';
 
-const СardList = () => {
+const СardList = ({ questions }) => {
+
   const [modalVisible, setModalVisible] = useState(false);
   const [text, setText] = useState('')
   const modalHandler = (answer: text) => {
     setModalVisible(prev => !prev)
     setText(answer)
   }
+  console.log(questions);
+
   return (
     <View style={styles.view}>
-      <Pressable
+      {/* <Pressable
         style={[styles.button, styles.buttonOpen]}
         onPress={() => setModalVisible(true)}>
         <Text style={styles.textStyle}>Show Modal</Text>
-      </Pressable>
+      </Pressable> */}
       <Modal
         animationType="slide"
         presentationStyle="formSheet"
@@ -45,9 +45,9 @@ const СardList = () => {
         data={questions}
         renderItem={({ item }) =>
           <Card
-            question={item.question}
+            question={item?.question}
             onPress={modalHandler}
-            answer={item.answer}
+            answer={item?.answer}
           />
         }
         keyExtractor={item => item.id.toString()}
