@@ -3,6 +3,7 @@ import Card from '@/components/Card/Card';
 import CardList from '@/components/СardList/СardList'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, Text, Button, TextInput, StyleSheet } from 'react-native';
+import { toastRef } from '@/components/Toast/Toast';
 
 
 export default function AboutScreen() {
@@ -58,13 +59,13 @@ export default function AboutScreen() {
     }
   };
 
-
   useEffect(() => {
     loadData();
   }, []);
+
   return (
     <View style={styles.container}>
-      <View style={{ padding: 20 }}>
+      {/* <View style={{ padding: 20 }}>
         <TextInput
           placeholder="Введіть текст"
           value={inputValue}
@@ -80,13 +81,13 @@ export default function AboutScreen() {
         <Text style={{ marginTop: 20 }}>
           Збережене значення: {storedValue || 'немає'}
         </Text>
-      </View>
-      <Text style={{ marginTop: 20 }}>
+      </View> */}
+      {/* <Text style={{ marginTop: 20 }}>
         question : {question.length > 0 ? question[0].question : 'немає'}
         {question.length}
-      </Text>
+      </Text> */}
       <CardList questions={question} />
-
+      <Button title="Показати Toast" onPress={() => toastRef.current("🔔 Сповіщення!")} />
     </View>
   );
 }

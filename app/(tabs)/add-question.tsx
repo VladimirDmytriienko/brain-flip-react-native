@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Button, Alert, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+
 export default function AddQuestionScreen() {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
