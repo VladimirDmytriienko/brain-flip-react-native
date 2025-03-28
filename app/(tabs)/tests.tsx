@@ -74,7 +74,7 @@ export default function TestsScreen() {
     console.log({ quizId: quiz.id });
 
     router.push({
-      pathname: '/(tabs)/test-completion',
+      pathname: '/test-completion',
       params: { quizId: quiz.id }
     });
   };
