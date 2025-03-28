@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } fr
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { Quiz, STORAGE_KEY } from '../types/quiz';
-import { toastRef } from '../../components/Toast/Toast';
+import { Quiz, STORAGE_KEY } from './types/quiz';
+import { toastRef } from '../components/Toast/Toast';
 
 export default function TestCompletionScreen() {
   const router = useRouter();

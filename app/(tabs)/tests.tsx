@@ -29,11 +29,11 @@ export default function TestsScreen() {
   );
 
   const handleAddQuestion = () => {
-    router.push('/(tabs)/add-tests');
+    router.navigate('/(tabs)/add-tests');
   };
 
   const handleEditQuiz = (quiz: Quiz) => {
-    router.push({
+    router.navigate({
       pathname: '/(tabs)/add-tests',
       params: { quizId: quiz.id }
     });
@@ -51,7 +51,7 @@ export default function TestsScreen() {
   };
 
   const handleQuizPress = (quiz: Quiz) => {
-    router.push({
+    router.navigate({
       pathname: '/test-completion',
       params: { quizId: quiz.id }
     });
