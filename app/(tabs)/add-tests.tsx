@@ -4,6 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Quiz, Question, Answer } from '../types/quiz';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import { nanoid } from 'nanoid/non-secure';
+
+
 
 interface QuestionModalProps {
   isVisible: boolean;
@@ -99,18 +102,17 @@ const QuestionModal: React.FC<QuestionModalProps> = ({
   </Modal>
 );
 
-const STORAGE_KEY = 'brain_flip_quizzes';
+export const STORAGE_KEY = 'brain_flip_quizzes';
 
 const AddTest = () => {
   const router = useRouter();
-  const [quizId] = useState(Date.now());
   const [quizTitle, setQuizTitle] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
 
   const createNewQuestion = (): Question => ({
-    id: `${quizId}_${questions.length}`,
+    id: nanoid(),
     questionText: '',
     answers: [
       { id: '1', text: '', isCorrect: false },
@@ -197,7 +199,7 @@ const AddTest = () => {
   const handleSaveQuiz = async () => {
     try {
       const quiz: Quiz = {
-        id: quizId,
+        id: nanoid(),
         title: quizTitle,
         questions: questions,
         createdAt: new Date().toISOString()

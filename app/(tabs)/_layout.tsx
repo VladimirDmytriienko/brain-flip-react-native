@@ -70,7 +70,16 @@ export default function TabLayout() {
             ),
           }}
         />
-
+        <Tabs.Screen
+          name="tests"
+          options={{
+            title: 'tests',
+            headerShown: false,
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? 'book-outline' : 'book-outline'} color={color} size={24} />
+            ),
+          }}
+        />
       </Tabs>
     </>
 
