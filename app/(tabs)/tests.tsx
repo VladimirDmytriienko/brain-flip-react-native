@@ -1,78 +1,56 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, SafeAreaView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { STORAGE_KEY } from './add-tests';
-
-
-interface Question {
-  id: string;
-  question: string;
-  answers: string[];
-  correctAnswer: number;
-}
-
-interface Quiz {
-  id: string;
-  title: string;
-  questions: Question[];
-  createdAt: string;
-}
+import { Quiz, STORAGE_KEY } from '../types/quiz';
+import { toastRef } from '../../components/Toast/Toast';
 
 export default function TestsScreen() {
   const router = useRouter();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [currentQuestion, setCurrentQuestion] = useState<Question>({
-    id: '',
-    question: '',
-    answers: [''],
-    correctAnswer: 0,
-  });
-  const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadQuizzes();
-  }, []);
 
   const loadQuizzes = async () => {
     try {
       const savedQuizzes = await AsyncStorage.getItem(STORAGE_KEY);
       if (savedQuizzes) {
-        setQuizzes(JSON.parse(savedQuizzes));
-        console.log(JSON.parse(savedQuizzes));
-
+        const parsedQuizzes = JSON.parse(savedQuizzes);
+        setQuizzes(parsedQuizzes);
       }
     } catch (error) {
-      console.error('Error loading quizzes:', error);
+      toastRef.current('Failed to load quizzes');
     }
   };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadQuizzes();
+    }, [])
+  );
 
   const handleAddQuestion = () => {
     router.push('/(tabs)/add-tests');
   };
 
   const handleEditQuiz = (quiz: Quiz) => {
-    setEditingQuizId(quiz.id);
-    setCurrentQuestion(quiz.questions[0]);
-    setIsModalVisible(true);
+    router.push({
+      pathname: '/(tabs)/add-tests',
+      params: { quizId: quiz.id }
+    });
   };
-
 
   const handleDeleteQuiz = async (quizId: string) => {
     try {
       const updatedQuizzes = quizzes.filter(quiz => quiz.id !== quizId);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedQuizzes));
       setQuizzes(updatedQuizzes);
+      toastRef.current('Quiz deleted successfully');
     } catch (error) {
-      console.error('Error deleting quiz:', error);
+      toastRef.current('Failed to delete quiz');
     }
   };
 
   const handleQuizPress = (quiz: Quiz) => {
-    console.log({ quizId: quiz.id });
-
     router.push({
       pathname: '/test-completion',
       params: { quizId: quiz.id }
@@ -87,7 +65,7 @@ export default function TestsScreen() {
       <View style={styles.quizContent}>
         <Text style={styles.quizTitle}>{item.title}</Text>
         <Text style={styles.quizInfo}>
-          {item.questions.length} questions • Created {new Date(item.createdAt).toLocaleDateString()}
+          {item.questions.length} questions
         </Text>
       </View>
       <View style={styles.quizActions}>
@@ -138,8 +116,6 @@ export default function TestsScreen() {
           contentContainerStyle={styles.list}
         />
       )}
-
-
     </SafeAreaView>
   );
 }

@@ -8,12 +8,13 @@ export interface Question {
   id: string;
   questionText: string;
   answers: Answer[];
-  correctAnswer: string | null;
+  correctAnswer: string;
 }
 
 export interface Quiz {
-  id: string | number;
+  id: string;
   title: string;
   questions: Question[];
-  createdAt?: string;
-} 
+}
+
+export const STORAGE_KEY = 'quizzes'; 

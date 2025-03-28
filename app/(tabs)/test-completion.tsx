@@ -3,27 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } fr
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { STORAGE_KEY } from './add-tests';
-
-interface Answer {
-  id: string;
-  text: string;
-  isCorrect: boolean;
-}
-
-interface Question {
-  id: string;
-  questionText: string;
-  answers: Answer[];
-  correctAnswer: string;
-}
-
-interface Quiz {
-  id: string;
-  title: string;
-  questions: Question[];
-  createdAt: string;
-}
+import { Quiz, STORAGE_KEY } from '../types/quiz';
+import { toastRef } from '../../components/Toast/Toast';
 
 export default function TestCompletionScreen() {
   const router = useRouter();
@@ -43,27 +24,30 @@ export default function TestCompletionScreen() {
     try {
       const savedQuizzes = await AsyncStorage.getItem(STORAGE_KEY);
       if (savedQuizzes) {
-        const quizzes = JSON.parse(savedQuizzes);
-        const foundQuiz = quizzes.find((q: Quiz) => q.id === quizId);
+        const quizzes: Quiz[] = JSON.parse(savedQuizzes);
+        const foundQuiz = quizzes.find((q) => q.id === quizId);
         if (foundQuiz) {
           setQuiz(foundQuiz);
           setUserAnswers(new Array(foundQuiz.questions.length).fill(''));
+        } else {
+          toastRef.current('Quiz not found');
+          router.back();
         }
       }
     } catch (error) {
-      console.error('Error loading quiz:', error);
+      toastRef.current('Failed to load quiz');
+      router.back();
     }
   };
 
   const handleAnswerSelect = (answerId: string) => {
-    if (isAnswerSelected) return; // Prevent multiple selections
+    if (isAnswerSelected) return;
 
     setIsAnswerSelected(true);
     const newAnswers = [...userAnswers];
     newAnswers[currentQuestionIndex] = answerId;
     setUserAnswers(newAnswers);
 
-    // Add delay before moving to next question
     setTimeout(() => {
       if (currentQuestionIndex < (quiz?.questions.length || 0) - 1) {
         setCurrentQuestionIndex(currentQuestionIndex + 1);

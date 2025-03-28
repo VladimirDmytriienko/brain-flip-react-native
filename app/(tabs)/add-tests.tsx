@@ -1,422 +1,272 @@
-import React, { useState } from 'react';
-import { View, TextInput, Button, ScrollView, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Quiz, Question, Answer } from '../types/quiz';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import { Formik } from 'formik';
+import * as Yup from 'yup';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import { nanoid } from 'nanoid/non-secure';
+import QuestionModal from '../../components/QuestionModal/QuestionModal';
+import { Ionicons } from '@expo/vector-icons';
+import { Quiz, Question, STORAGE_KEY } from '../types/quiz';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { toastRef } from '../../components/Toast/Toast';
 
+const quizSchema = Yup.object().shape({
+  title: Yup.string()
+    .required('Quiz title is required')
+    .min(1, 'Quiz title cannot be empty')
+    .max(50, 'Quiz title must be less than 50 characters')
+});
 
+const initialQuestion: Question = {
+  id: Date.now().toString(),
+  questionText: '',
+  answers: [
+    { id: '1', text: '', isCorrect: false },
+    { id: '2', text: '', isCorrect: false }
+  ],
+  correctAnswer: ''
+};
 
-interface QuestionModalProps {
-  isVisible: boolean;
-  onClose: () => void;
-  onSave: () => void;
-  currentQuestion: Question | null;
-  onQuestionChange: (text: string) => void;
-  onAnswerChange: (text: string, answerId: string) => void;
-  onCorrectAnswerSelect: (answerId: string) => void;
-  onAddVariant: () => void;
-  onDeleteVariant: (answerId: string) => void;
-}
-
-const QuestionModal: React.FC<QuestionModalProps> = ({
-  isVisible,
-  onClose,
-  onSave,
-  currentQuestion,
-  onQuestionChange,
-  onAnswerChange,
-  onCorrectAnswerSelect,
-  onAddVariant,
-  onDeleteVariant
-}) => (
-  <Modal
-    animationType="slide"
-    presentationStyle="formSheet"
-    visible={isVisible}
-    onRequestClose={onClose}
-  >
-    <SafeAreaView style={styles.modalContainer}>
-      <View style={styles.modalHeader}>
-        <Text style={styles.modalTitle}>Add New Question</Text>
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={onClose}
-        >
-          <Text style={styles.closeButtonText}>✕</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.modalContent}>
-        <TextInput
-          style={styles.questionInput}
-          placeholder="Enter question"
-          value={currentQuestion?.questionText || ''}
-          onChangeText={onQuestionChange}
-        />
-
-        {currentQuestion?.answers.map((answer) => (
-          <View key={`${currentQuestion.id}_${answer.id}`} style={styles.answerContainer}>
-            <Text style={styles.answerLabel}>{answer.id}</Text>
-            <TextInput
-              style={styles.answerInput}
-              placeholder={`Option ${answer.id}`}
-              value={answer.text}
-              onChangeText={(text) => onAnswerChange(text, answer.id)}
-            />
-            <TouchableOpacity
-              style={[styles.correctButton, answer.isCorrect && styles.correctButtonActive]}
-              onPress={() => onCorrectAnswerSelect(answer.id)}
-            >
-              <Text style={[styles.correctButtonText, answer.isCorrect && styles.correctButtonTextActive]}>✓</Text>
-            </TouchableOpacity>
-            {currentQuestion.answers.length > 2 && (
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => onDeleteVariant(answer.id)}
-              >
-                <Text style={styles.deleteButtonText}>×</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        ))}
-
-        <TouchableOpacity
-          style={styles.addVariantButton}
-          onPress={onAddVariant}
-        >
-          <Text style={styles.addVariantButtonText}>+ Add Variant</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      <View style={styles.modalFooter}>
-        <TouchableOpacity
-          style={styles.modalSaveButton}
-          onPress={onSave}
-        >
-          <Text style={styles.modalSaveButtonText}>Save Question</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
-  </Modal>
-);
-
-export const STORAGE_KEY = 'brain_flip_quizzes';
-
-const AddTest = () => {
+const AddTest: React.FC = () => {
   const router = useRouter();
-  const [quizTitle, setQuizTitle] = useState('');
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const { quizId } = useLocalSearchParams();
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<Question>(initialQuestion);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [initialTitle, setInitialTitle] = useState('');
 
-  const createNewQuestion = (): Question => ({
-    id: nanoid(),
-    questionText: '',
-    answers: [
-      { id: '1', text: '', isCorrect: false },
-      { id: '2', text: '', isCorrect: false },
-    ],
-    correctAnswer: null
-  });
+  useEffect(() => {
+    if (quizId) {
+      loadQuiz(quizId as string);
+    }
+  }, [quizId]);
 
-  const handleAddQuestion = () => {
-    setCurrentQuestion(createNewQuestion());
+  const loadQuiz = async (id: string) => {
+    try {
+      const savedQuizzes = await AsyncStorage.getItem(STORAGE_KEY);
+      if (savedQuizzes) {
+        const quizzes: Quiz[] = JSON.parse(savedQuizzes);
+        const foundQuiz = quizzes.find(q => q.id === id);
+        if (foundQuiz) {
+          setQuestions(foundQuiz.questions);
+          setInitialTitle(foundQuiz.title);
+          setIsEditing(true);
+        }
+      }
+    } catch (error) {
+      toastRef.current('Failed to load quiz');
+      router.back();
+    }
+  };
+
+  const handleAddQuestion = (question: Question) => {
+    // Validate question before adding
+    if (!question.questionText.trim()) {
+      toastRef.current('Question text cannot be empty');
+      return;
+    }
+
+    if (question.answers.some(answer => !answer.text.trim())) {
+      toastRef.current('All answers must be filled');
+      return;
+    }
+
+    if (!question.answers.some(answer => answer.isCorrect)) {
+      toastRef.current('Please mark one answer as correct');
+      return;
+    }
+
+    if (editingQuestionId) {
+      setQuestions(questions.map(q =>
+        q.id === editingQuestionId ? question : q
+      ));
+      setEditingQuestionId(null);
+    } else {
+      setQuestions([...questions, question]);
+      setCurrentQuestion({
+        ...initialQuestion,
+        id: Date.now().toString()
+      });
+    }
+    setIsModalVisible(false);
+  };
+
+  const handleEditQuestion = (question: Question) => {
+    setCurrentQuestion(question);
+    setEditingQuestionId(question.id);
     setIsModalVisible(true);
   };
 
-  const handleAddAnswerVariant = () => {
-    if (currentQuestion) {
-      const nextId = String(currentQuestion.answers.length + 1);
-      const newAnswer: Answer = {
-        id: nextId,
-        text: '',
-        isCorrect: false
-      };
+  const handleDeleteQuestion = (questionId: string) => {
+    setQuestions(prevQuestions => prevQuestions.filter(q => q.id !== questionId));
+    if (editingQuestionId === questionId) {
+      setEditingQuestionId(null);
       setCurrentQuestion({
-        ...currentQuestion,
-        answers: [...currentQuestion.answers, newAnswer]
+        ...initialQuestion,
+        id: Date.now().toString()
       });
     }
   };
 
-  const handleQuestionChange = (text: string) => {
-    if (currentQuestion) {
-      setCurrentQuestion({ ...currentQuestion, questionText: text });
-    }
-  };
-
-  const handleAnswerChange = (text: string, answerId: string) => {
-    if (currentQuestion) {
-      setCurrentQuestion({
-        ...currentQuestion,
-        answers: currentQuestion.answers.map(a =>
-          a.id === answerId ? { ...a, text } : a
-        )
-      });
-    }
-  };
-
-  const handleCorrectAnswerSelect = (answerId: string) => {
-    if (currentQuestion) {
-      setCurrentQuestion({
-        ...currentQuestion,
-        answers: currentQuestion.answers.map(a => ({
-          ...a,
-          isCorrect: a.id === answerId
-        })),
-        correctAnswer: answerId
-      });
-    }
-  };
-
-  const handleDeleteVariant = (answerId: string) => {
-    if (currentQuestion) {
-      const updatedAnswers = currentQuestion.answers
-        .filter(a => a.id !== answerId)
-        .map((answer, index) => ({
-          ...answer,
-          id: String(index + 1)
-        }));
-
-      setCurrentQuestion({
-        ...currentQuestion,
-        answers: updatedAnswers,
-        correctAnswer: currentQuestion.correctAnswer === answerId ? null : currentQuestion.correctAnswer
-      });
-    }
-  };
-
-  const handleSaveQuestion = () => {
-    if (currentQuestion) {
-      setQuestions([...questions, currentQuestion]);
-      setIsModalVisible(false);
-      setCurrentQuestion(null);
-    }
-  };
-
-  const handleSaveQuiz = async () => {
+  const handleSaveQuiz = async (values: { title: string }) => {
     try {
-      const quiz: Quiz = {
-        id: nanoid(),
-        title: quizTitle,
-        questions: questions,
-        createdAt: new Date().toISOString()
-      };
-      console.log(quiz);
+      if (!values.title.trim()) {
+        toastRef.current('Please enter a quiz title');
+        return;
+      }
 
-      // Get existing quizzes
+      if (questions.length === 0) {
+        toastRef.current('Please add at least one question');
+        return;
+      }
+
+      for (const question of questions) {
+        if (!question.questionText.trim()) {
+          toastRef.current('All questions must have text');
+          return;
+        }
+        if (question.answers.some(answer => !answer.text.trim())) {
+          toastRef.current('All answers must be filled');
+          return;
+        }
+        if (!question.answers.some(answer => answer.isCorrect)) {
+          toastRef.current('Each question must have one correct answer');
+          return;
+        }
+      }
+
       const existingQuizzesJson = await AsyncStorage.getItem(STORAGE_KEY);
-      const existingQuizzes = existingQuizzesJson ? JSON.parse(existingQuizzesJson) : [];
+      const existingQuizzes: Quiz[] = existingQuizzesJson ? JSON.parse(existingQuizzesJson) : [];
 
-      // Add new quiz to the list
-      const updatedQuizzes = [...existingQuizzes, quiz];
-      console.log(updatedQuizzes);
+      const newQuiz: Quiz = {
+        id: isEditing ? quizId as string : Date.now().toString(),
+        title: values.title.trim(),
+        questions: questions
+      };
 
-      // Save updated quizzes list
+      let updatedQuizzes: Quiz[];
+      if (isEditing) {
+        updatedQuizzes = existingQuizzes.map(q => q.id === quizId ? newQuiz : q);
+      } else {
+        updatedQuizzes = [...existingQuizzes, newQuiz];
+      }
+
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedQuizzes));
 
-      // Navigate to home or quiz list
-
+      toastRef.current(isEditing ? 'Quiz updated successfully!' : 'Quiz saved successfully!');
+      router.back();
     } catch (error) {
-      console.error('Error saving quiz:', error);
-      alert('Failed to save quiz');
+      toastRef.current('Failed to save quiz');
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <TextInput
-          style={styles.titleInput}
-          placeholder="Quiz Title"
-          value={quizTitle}
-          onChangeText={setQuizTitle}
-        />
+    <View style={styles.container}>
+      <Formik
+        initialValues={{ title: initialTitle }}
+        validationSchema={quizSchema}
+        onSubmit={handleSaveQuiz}
+        enableReinitialize
+      >
+        {({ handleChange, handleSubmit, values, errors, touched }) => (
+          <View style={styles.formContainer}>
+            <TextInput
+              style={[
+                styles.titleInput,
+                touched.title && errors.title && styles.inputError
+              ]}
+              placeholder="Enter quiz title"
+              value={values.title}
+              onChangeText={handleChange('title')}
+            />
+            {touched.title && errors.title && (
+              <Text style={styles.errorText}>{errors.title}</Text>
+            )}
 
-        <TouchableOpacity style={styles.addQuestionButton} onPress={handleAddQuestion}>
-          <Text style={styles.addQuestionButtonText}>+ Add Question</Text>
-        </TouchableOpacity>
-
-        <ScrollView style={styles.questionsList}>
-          {questions.map((question, index) => (
-            <View key={question.id} style={styles.questionCard}>
-              <Text style={styles.questionNumber}>Question {index + 1}</Text>
-              <Text style={styles.questionText}>{question.questionText}</Text>
-              {question.answers.map((answer) => (
-                <View key={`${question.id}_${answer.id}`} style={styles.answerPreview}>
-                  <Text style={styles.answerLabel}>{answer.id}</Text>
-                  <Text style={styles.answerText}>{answer.text}</Text>
-                  {answer.isCorrect && <Text style={styles.correctIndicator}>✓</Text>}
+            <ScrollView style={styles.questionsList}>
+              {questions.map((question, index) => (
+                <View key={question.id} style={styles.questionItem}>
+                  <View style={styles.questionHeader}>
+                    <Text style={styles.questionText}>
+                      Question {index + 1}: {question.questionText}
+                    </Text>
+                    <View style={styles.questionActions}>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => handleEditQuestion(question)}
+                      >
+                        <Ionicons name="pencil" size={20} color="#000000" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => handleDeleteQuestion(question.id)}
+                      >
+                        <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <Text style={styles.answerCount}>
+                    {question.answers.length} answers
+                  </Text>
                 </View>
               ))}
-            </View>
-          ))}
-        </ScrollView>
+            </ScrollView>
 
-        {questions.length > 0 && (
-          <TouchableOpacity style={styles.saveQuizButton} onPress={handleSaveQuiz}>
-            <Text style={styles.saveQuizButtonText}>Save Quiz</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => {
+                setCurrentQuestion({
+                  ...initialQuestion,
+                  id: Date.now().toString()
+                });
+                setEditingQuestionId(null);
+                setIsModalVisible(true);
+              }}
+            >
+              <Text style={styles.addButtonText}>+ Add Question</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.saveButton,
+                (!values.title.trim() || questions.length === 0) && styles.disabledButton
+              ]}
+              onPress={() => handleSubmit()}
+              disabled={!values.title.trim() || questions.length === 0}
+            >
+              <Text style={styles.saveButtonText}>
+                {isEditing ? 'Update Quiz' : 'Save Quiz'}
+              </Text>
+            </TouchableOpacity>
+
+            <QuestionModal
+              isVisible={isModalVisible}
+              onClose={() => {
+                setIsModalVisible(false);
+                setEditingQuestionId(null);
+              }}
+              onSubmit={handleAddQuestion}
+              initialValues={currentQuestion}
+              isEditing={!!editingQuestionId}
+            />
+          </View>
         )}
-
-        <QuestionModal
-          isVisible={isModalVisible}
-          onClose={() => setIsModalVisible(false)}
-          onSave={handleSaveQuestion}
-          currentQuestion={currentQuestion}
-          onQuestionChange={handleQuestionChange}
-          onAnswerChange={handleAnswerChange}
-          onCorrectAnswerSelect={handleCorrectAnswerSelect}
-          onAddVariant={handleAddAnswerVariant}
-          onDeleteVariant={handleDeleteVariant}
-        />
-      </View>
-    </SafeAreaView>
+      </Formik>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF'
-  },
   container: {
     flex: 1,
-    padding: 20,
     backgroundColor: '#FFFFFF'
   },
-  titleInput: {
-    fontSize: 24,
-    marginBottom: 20,
-    padding: 15,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#000000'
-  },
-  addQuestionButton: {
-    backgroundColor: '#000000',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 20
-  },
-  addQuestionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold'
-  },
-  questionsList: {
-    flex: 1
-  },
-  questionCard: {
-    marginBottom: 20,
-    padding: 15,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#000000'
-  },
-  questionNumber: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#000000'
-  },
-  questionText: {
-    fontSize: 16,
-    marginBottom: 10,
-    color: '#000000'
-  },
-  answerPreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 4,
-    marginBottom: 5,
-    borderWidth: 1,
-    borderColor: '#000000'
-  },
-  answerLabel: {
-    width: 30,
-    fontWeight: 'bold',
-    color: '#000000'
-  },
-  answerText: {
-    flex: 1,
-    color: '#000000'
-  },
-  correctIndicator: {
-    color: '#000000',
-    marginLeft: 10
-  },
-  saveQuizButton: {
-    backgroundColor: '#000000',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 20
-  },
-  saveQuizButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold'
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF'
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#000000'
-  },
-  closeButton: {
-    padding: 8,
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  closeButtonText: {
-    color: '#000000',
-    fontSize: 24,
-    fontWeight: 'bold'
-  },
-  modalContent: {
+  formContainer: {
     flex: 1,
     padding: 20
   },
-  modalFooter: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#000000'
-  },
-  modalSaveButton: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#000000'
-  },
-  modalSaveButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: 'bold'
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#000000'
-  },
-  questionInput: {
+  titleInput: {
     marginBottom: 15,
     padding: 12,
     borderWidth: 1,
@@ -425,68 +275,74 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000000'
   },
-  answerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    padding: 8
-  },
-  answerInput: {
+  questionsList: {
     flex: 1,
-    marginRight: 10,
-    padding: 12,
+    marginBottom: 20
+  },
+  questionItem: {
+    padding: 15,
     borderWidth: 1,
     borderColor: '#000000',
     borderRadius: 8,
-    color: '#000000'
+    marginBottom: 10
   },
-  correctButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#000000',
-    justifyContent: 'center',
-    alignItems: 'center'
+  questionText: {
+    fontSize: 16,
+    color: '#000000',
+    marginBottom: 5
   },
-  correctButtonActive: {
+  answerCount: {
+    fontSize: 14,
+    color: '#666666'
+  },
+  addButton: {
     backgroundColor: '#000000',
-    borderColor: '#000000'
-  },
-  correctButtonText: {
-    fontSize: 20,
-    color: '#000000'
-  },
-  correctButtonTextActive: {
-    color: '#FFFFFF'
-  },
-  addVariantButton: {
-    backgroundColor: '#000000',
-    padding: 12,
+    padding: 16,
     borderRadius: 8,
     alignItems: 'center',
-    marginVertical: 10
+    marginBottom: 20
   },
-  addVariantButtonText: {
+  addButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold'
   },
-  deleteButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#000000',
-    justifyContent: 'center',
+  saveButton: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 8,
     alignItems: 'center',
-    marginLeft: 8
+    borderWidth: 1,
+    borderColor: '#000000'
   },
-  deleteButtonText: {
+  saveButtonText: {
     color: '#000000',
-    fontSize: 24,
-    fontWeight: 'bold',
-    lineHeight: 24
+    fontSize: 16,
+    fontWeight: 'bold'
+  },
+  errorText: {
+    color: 'red',
+    marginBottom: 10
+  },
+  inputError: {
+    borderColor: '#FF3B30'
+  },
+  disabledButton: {
+    opacity: 0.5
+  },
+  questionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 5
+  },
+  questionActions: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  actionButton: {
+    padding: 8,
+    marginLeft: 8
   }
 });
 
