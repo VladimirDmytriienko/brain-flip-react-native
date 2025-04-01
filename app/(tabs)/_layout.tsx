@@ -29,7 +29,16 @@ export default function TabLayout() {
             ),
           }}
         />
-
+        <Tabs.Screen
+          name="random-question"
+          options={{
+            title: 'random-question',
+            headerShown: false,
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? 'book-outline' : 'book-outline'} color={color} size={24} />
+            ),
+          }}
+        />
         <Tabs.Screen
           name="add-question"
           options={{

@@ -3,7 +3,7 @@ import { Pressable, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const Card = ({ question, onPress, answer }) => {
+const Card = ({ id, question, onPress, answer }) => {
   const [isFavorite, setIsFavorite] = useState(false);
 
   const toggleFavorite = async () => {
@@ -43,7 +43,7 @@ const Card = ({ question, onPress, answer }) => {
 
   return (
     <Pressable style={styles.card} onPress={() => onPress(answer)}>
-      <Text style={styles.text}>{question}</Text>
+      <Text style={styles.text}>{id + ":"}{question}</Text>
       <Pressable onPress={toggleFavorite} style={styles.iconContainer}>
         <Ionicons
           name={isFavorite ? "star" : "star-outline"}
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontWeight: "500",
     flex: 1,
-    textAlign: "center",
+    textAlign: "left",
   },
   iconContainer: {
     padding: 8,

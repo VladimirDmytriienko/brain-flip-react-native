@@ -42,6 +42,7 @@ const CardList = ({ questions }) => {
         data={questions}
         renderItem={({ item }) => (
           <Card
+            id={item?.id}
             question={item?.question}
             onPress={modalHandler}
             answer={item?.answer}
